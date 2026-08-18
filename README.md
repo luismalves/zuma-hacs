@@ -30,6 +30,11 @@ Units are discovered automatically over mDNS (`_sues800device._tcp`); the TXT re
 serial becomes the unique ID, so discovered and manually-added entries resolve to one
 device. Manual setup by IP also works.
 
+State changes are **pushed**: the integration long-polls the device's event queue
+(`/api/event/*`, subscribing to leaf nodes as type `item`) and refreshes within ~2 s
+of a change made from the app or the unit itself. A 60 s poll runs as a fallback and
+to catch the rarely-changing diagnostics.
+
 ## Install
 
 [![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=luismalves&repository=zuma-hacs&category=integration)
@@ -103,8 +108,6 @@ CoAP, no per-device key. Notes that shaped the entity:
   MQTT telemetry to Zuma's cloud** — they are never written to a locally-readable node.
   The app's temperature figure comes from the cloud. The only local thermal signal is
   the `thermal_mode` enum (`normal` → `limited` → `shutdown`), exposed as a sensor.
-- **Push state updates.** The integration polls every 10 s. The device also offers a
-  long-poll event queue (`/api/event/*`) that could replace polling later.
 
 ## The device API, for reference
 
