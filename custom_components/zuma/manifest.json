@@ -10,7 +10,7 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/luismalves/zuma-hacs/issues",
   "requirements": [],
-  "version": "0.0.1",
+  "version": "0.1.0",
   "zeroconf": [
     "_sues800device._tcp.local."
   ]
