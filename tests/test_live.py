@@ -63,10 +63,11 @@ async def test_full_poll_matches_entity_expectations(api):
     """One coordinator poll returns every key the entities read."""
     state = await api.get_state()
     print("\npoll:", json.dumps(state, indent=2))
-    assert set(state) == {
+    assert {
         "volume", "mute", "state", "title", "image", "source", "controls",
-        "circadian", "led_curfew", "light",
-    }
+        "circadian", "led_curfew", "light", "ip", "ssid", "bssid", "rssi",
+        "frequency", "thermal", "bezel", "master",
+    } <= set(state)
     assert isinstance(state["controls"], dict)
     assert isinstance(state["circadian"], bool)
     assert isinstance(state["led_curfew"], bool)
@@ -117,3 +118,13 @@ async def test_light_brightness_roundtrip_and_restore(api):
     finally:
         await api.set_light({**orig, "lastTransitionPeriod": "ms500"})
         assert (await api.get_light())["brightness"] == orig["brightness"]
+
+
+async def test_diagnostics_present(api):
+    """Diagnostics poll returns connectivity + thermal + role fields."""
+    st = await api.get_state()
+    print("\ndiagnostics:", json.dumps({k: st.get(k) for k in
+        ("ip","ssid","rssi","thermal","bezel","master")}, indent=2))
+    assert st["rssi"] is None or isinstance(st["rssi"], int)
+    assert st["thermal"] in (None, "normal", "limited", "shutdown")
+    assert isinstance(st["master"], bool)

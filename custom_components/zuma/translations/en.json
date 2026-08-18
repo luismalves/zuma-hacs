@@ -29,6 +29,33 @@
       "led_curfew": {
         "name": "Status LED curfew"
       }
+    },
+    "sensor": {
+      "wifi_signal": {
+        "name": "WiFi signal"
+      },
+      "ip_address": {
+        "name": "IP address"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "thermal_mode": {
+        "name": "Thermal mode",
+        "state": {
+          "normal": "Normal",
+          "limited": "Limited",
+          "shutdown": "Shutdown"
+        }
+      }
+    },
+    "binary_sensor": {
+      "smart_bezel": {
+        "name": "Smart bezel"
+      },
+      "area_master": {
+        "name": "Area master"
+      }
     }
   }
 }

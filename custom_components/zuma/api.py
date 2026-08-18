@@ -30,7 +30,11 @@ from .const import (
     PATH_DEVICE_NAME,
     PATH_LED_CURFEW,
     PATH_LIGHT,
+    PATH_BEZEL,
     PATH_MANUFACTURER,
+    PATH_MASTER,
+    PATH_NETWORK_INFO,
+    PATH_TEMP_MODE,
     PATH_MODEL,
     PATH_MUTE,
     PATH_PLAYER_DATA,
@@ -243,4 +247,28 @@ class ZumaApi:
             "circadian": await self.get_value(PATH_CIRCADIAN),
             "led_curfew": await self.get_value(PATH_LED_CURFEW),
             "light": await self.get_light(),
+            **await self._get_diagnostics(),
+        }
+
+    async def _get_diagnostics(self) -> dict[str, Any]:
+        """Read-only diagnostics: connectivity, thermal, accessory, group role."""
+        # network:info carries a type="networkInfo" tag, so get_value already
+        # unwraps it to the inner object (keys: wireless, wired, gateways, ...).
+        info = await self.get_value(PATH_NETWORK_INFO)
+        if not isinstance(info, dict):
+            info = {}
+        # Prefer whichever interface is up; a Lumisonic is normally on wireless.
+        wired, wifi = info.get("wired") or {}, info.get("wireless") or {}
+        iface = wired if wired.get("state") == "up" else wifi
+        addrs = iface.get("addresses") or []
+        ip = next((a.get("ip") for a in addrs if a.get("protocol") == "ipv4"), None)
+        return {
+            "ip": ip,
+            "ssid": wifi.get("ssid"),
+            "bssid": wifi.get("bssid"),
+            "rssi": wifi.get("signalLevel"),
+            "frequency": wifi.get("frequency"),
+            "thermal": await self.get_value(PATH_TEMP_MODE),
+            "bezel": await self.get_value(PATH_BEZEL),
+            "master": await self.get_value(PATH_MASTER),
         }

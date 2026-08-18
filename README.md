@@ -19,6 +19,8 @@ No cloud, no account, no API key — the API needs no authentication at all.
 | `media_player` now playing | `player:player/data` | title, artwork URL, `zuma_service` attribute |
 | `switch` circadian lighting | `settings:/zuma/circadianLighting` | |
 | `switch` status LED curfew | `settings:/zuma/ledCurfewEnabled` | diagnostic, config category |
+| `sensor` WiFi signal / IP / firmware / thermal mode | `network:info`, identity, `zuma:volatile/temperatureMode` | read-only diagnostics |
+| `binary_sensor` smart bezel / area master | `settings:/zuma/bezelAttached`, `settings:/system/zuma/zumaMaster` | read-only diagnostics |
 
 Devices are discovered automatically over mDNS (`_sues800device._tcp`), whose TXT
 record carries the serial used as the unique ID. Manual setup by IP also works.
