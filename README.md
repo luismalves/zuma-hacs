@@ -15,6 +15,7 @@ No cloud, no account, no API key — the API needs no authentication at all.
 | `media_player` state | `player:player/data` | `stopped` / `playing` / `paused` |
 | `media_player` pause / stop | `player:player/control` | `{"control": "pause"\|"stop"}` |
 | `media_player` next / previous | `player:player/control` | advertised only when `controls.next_` / `.previous` are true; live radio reports false |
+| `media_player` play URL | DLNA `AVTransport` (renderer) | `media_player.play_media` — starts a stream URL the nsdk API can't originate |
 | `media_player` now playing | `player:player/data` | title, artwork URL, `zuma_service` attribute |
 | `switch` circadian lighting | `settings:/zuma/circadianLighting` | |
 | `switch` status LED curfew | `settings:/zuma/ledCurfewEnabled` | diagnostic, config category |
@@ -76,6 +77,31 @@ HACS → three-dot menu → Custom repositories → this repo, category *Integra
 Then Settings → Devices & Services → Add Integration → **Zuma**.
 
 Or copy `custom_components/zuma/` into your HA `config/custom_components/`.
+
+## Playing a stream URL (internet radio, etc.)
+
+The nsdk API can pause/stop/skip but cannot *start* a URL. The same unit also runs a
+Rygel DLNA MediaRenderer, which can — so `media_player.play_media` bridges to it:
+
+```yaml
+action: media_player.play_media
+target:
+  entity_id: media_player.bathroom
+data:
+  media_content_id: https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO_RENASCENCA.mp3
+  media_content_type: music
+```
+
+This is the standard Home Assistant service — no custom action. Under the hood the
+integration finds the renderer via a unicast SSDP M-SEARCH each call (its port is
+ephemeral and moves across reboots) and issues `SetAVTransportURI` + `Play`. Volume,
+mute, pause and stop then work on the stream through the nsdk API as usual.
+
+**Format limits (the renderer probes the URL and enforces these):** MP3
+(`audio/mpeg`) and clean AAC/MP4 play. **HLS (`.m3u8`) and ICY `audio/aacp` do not** —
+notably streamtheworld's `.aac` mounts serve `audio/aacp` and are refused, so use the
+station's `.mp3` mount. The entity also accepts HA media-source items (TTS, the media
+browser), not only raw URLs.
 
 ## The device API, for reference
 

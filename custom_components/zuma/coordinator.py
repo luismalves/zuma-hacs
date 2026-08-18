@@ -39,6 +39,8 @@ class ZumaCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.api = api
         # Filled in once during setup; entities read it to build device_info.
         self.identity: dict[str, Any] = {}
+        # Cached DLNA AVTransport control URL (ephemeral port; re-discovered on failure).
+        self.avtransport_url: str | None = None
 
     async def _async_update_data(self) -> dict[str, Any]:
         try:

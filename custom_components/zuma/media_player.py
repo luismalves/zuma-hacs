@@ -9,10 +9,16 @@ from homeassistant.components.media_player import (
     MediaPlayerState,
     MediaType,
 )
+import aiohttp
+
+from homeassistant.components import media_source
+from homeassistant.components.media_player import async_process_play_media_url
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import VOLUME_MAX
+from .dlna import discover_avtransport, play_url, probe_mime
 from .coordinator import ZumaConfigEntry, ZumaCoordinator
 from .entity import ZumaEntity
 
@@ -51,6 +57,8 @@ class ZumaMediaPlayer(ZumaEntity, MediaPlayerEntity):
         | MediaPlayerEntityFeature.VOLUME_STEP
         | MediaPlayerEntityFeature.PAUSE
         | MediaPlayerEntityFeature.STOP
+        | MediaPlayerEntityFeature.PLAY_MEDIA
+        | MediaPlayerEntityFeature.BROWSE_MEDIA
     )
 
     def __init__(self, coordinator: ZumaCoordinator) -> None:
@@ -128,6 +136,53 @@ class ZumaMediaPlayer(ZumaEntity, MediaPlayerEntity):
 
     async def _control(self, verb: str) -> None:
         await self.coordinator.api.control(verb)
+        await self.coordinator.async_request_refresh()
+
+    async def async_browse_media(self, media_content_type=None, media_content_id=None):
+        """Let HA's media browser feed URLs (and TTS/radio media sources) in."""
+        return await media_source.async_browse_media(
+            self.hass,
+            media_content_id,
+            content_filter=lambda item: item.media_content_type.startswith("audio/"),
+        )
+
+    async def async_play_media(
+        self, media_type: str, media_id: str, **kwargs
+    ) -> None:
+        """Play a stream URL by bridging to the unit's own DLNA renderer.
+
+        The nsdk API can't start playback of a URL, but the Rygel renderer on the
+        same box can. Note the renderer only accepts what its sink list allows --
+        MP3 and clean AAC play; ICF/ICY `audio/aacp` streams (e.g. streamtheworld
+        `.aac` mounts) are refused by the device, so use the `.mp3` mount.
+        """
+        if media_source.is_media_source_id(media_id):
+            item = await media_source.async_resolve_media(
+                self.hass, media_id, self.entity_id
+            )
+            media_id = item.url
+        media_id = async_process_play_media_url(self.hass, media_id)
+
+        session = self.coordinator.api._session  # noqa: SLF001 -- reuse HA's session
+        mime = await probe_mime(media_id, session)
+
+        async def _attempt() -> None:
+            if not self.coordinator.avtransport_url:
+                self.coordinator.avtransport_url = await discover_avtransport(
+                    self.coordinator.api.host, session
+                )
+            if not self.coordinator.avtransport_url:
+                raise HomeAssistantError("Could not find the Zuma DLNA renderer")
+            await play_url(
+                session, self.coordinator.avtransport_url, media_id, "Zuma stream", mime
+            )
+
+        try:
+            await _attempt()
+        except (aiohttp.ClientError, HomeAssistantError):
+            # Port likely rotated; forget it and rediscover once.
+            self.coordinator.avtransport_url = None
+            await _attempt()
         await self.coordinator.async_request_refresh()
 
     async def async_set_volume_level(self, volume: float) -> None:
