@@ -1,113 +1,117 @@
 # Zuma for Home Assistant
 
 Local control of [Zuma](https://zuma.ai) ceiling speaker-lights (Lumisonic / Zuma SL)
-over the undocumented StreamUnlimited StreamSDK HTTP API the units expose on port 80.
+over the local network — no cloud, no account, no API key.
 
-No cloud, no account, no API key — the API needs no authentication at all.
+> **Disclaimer — not affiliated with Zuma.** This is an independent,
+> community-built integration. It is **not** produced, endorsed, sponsored, or
+> supported by Zuma Array Limited or any of its brands (Zuma, Lumisonic). "Zuma"
+> and "Lumisonic" are trademarks of their respective owner and are used here only
+> to describe the hardware this project interoperates with (nominative fair use).
+> The integration talks to an undocumented local interface found by inspecting a
+> device the author owns; it may break at any firmware update and comes with no
+> warranty. Use at your own risk.
 
-## What this controls
+## What it does
 
 | Entity | Backing node | Notes |
 |---|---|---|
 | `light` | `zuma:lightState` | on/off, brightness, colour temperature (2200–6500 K) |
-| `media_player` volume | `player:volume` | 0–100 on the device, mapped to HA's 0.0–1.0 |
-| `media_player` mute | `settings:/mediaPlayer/mute` | |
-| `media_player` state | `player:player/data` | `stopped` / `playing` / `paused` |
-| `media_player` pause / stop | `player:player/control` | `{"control": "pause"\|"stop"}` |
-| `media_player` next / previous | `player:player/control` | advertised only when `controls.next_` / `.previous` are true; live radio reports false |
-| `media_player` play URL | DLNA `AVTransport` (renderer) | `media_player.play_media` — starts a stream URL the nsdk API can't originate |
-| `media_player` now playing | `player:player/data` | title, artwork URL, `zuma_service` attribute |
-| `switch` circadian lighting | `settings:/zuma/circadianLighting` | |
-| `switch` status LED curfew | `settings:/zuma/ledCurfewEnabled` | diagnostic, config category |
-| `sensor` WiFi signal / IP / firmware / thermal mode | `network:info`, identity, `zuma:volatile/temperatureMode` | read-only diagnostics |
+| `media_player` volume / mute | `player:volume`, `settings:/mediaPlayer/mute` | volume 0–100 ↔ HA 0.0–1.0 |
+| `media_player` transport | `player:player/control` | pause, stop; next/previous only when the stream reports them |
+| `media_player` play URL | DLNA `AVTransport` | `media_player.play_media` — start a stream URL |
+| `media_player` now playing | `player:player/data` | state, title, artwork, `zuma_service` attribute |
+| `switch` circadian lighting | `settings:/zuma/circadianLighting` | mode toggle |
+| `switch` status LED curfew | `settings:/zuma/ledCurfewEnabled` | quiets the indicator LED overnight (config) |
+| `sensor` WiFi signal / IP / firmware / thermal mode | `network:info`, device identity, `zuma:volatile/temperatureMode` | read-only diagnostics |
 | `binary_sensor` smart bezel / area master | `settings:/zuma/bezelAttached`, `settings:/system/zuma/zumaMaster` | read-only diagnostics |
 
-Devices are discovered automatically over mDNS (`_sues800device._tcp`), whose TXT
-record carries the serial used as the unique ID. Manual setup by IP also works.
-
-## What this does *not* control, and why
-
-**Lamp brightness and colour temperature are not available over HTTP.** This isn't an
-omission — all 365 nodes under `settings:/` and `player:` were enumerated, and the only
-light-related ones are `circadianLighting` (a mode toggle), `ledCurfew*` (the small
-status LED), and `ui/displayBrightness` (the StreamSDK display). There is no brightness,
-CCT, or on/off node for the lamp itself.
-
-### The light — controllable over plain HTTP after all
-
-Brightness, colour temperature and power are all live on the LAN HTTP API, no auth:
-
-    zuma:lightState = {
-      "type": "zumaLightState",
-      "zumaLightState": {
-        "power": true,
-        "brightness": 25,           # 0-100
-        "temperature": 3869,        # Kelvin
-        "lastTransitionPeriod": "ms1000"
-      }
-    }
-
-The catch that hid this for a while: `settings:/zuma/lightState` is flagged
-`"internal": true` (confirmed in the firmware's `settings-default/zuma/*`), so
-enumeration never lists it and `getData` returns "Node is internal". But the
-device also mirrors the lamp into the **`zuma:` volatile namespace**, and
-`zuma:lightState` is served over the LAN read *and* write. `getData`/`setData`
-it like any other node; the value is a composite tagged `zumaLightState` rather
-than a scalar.
-
-Findings that shaped the `light` entity:
-- **Temperature**: the firmware tolerates 1000–8000 K but the entity clamps to
-  2200–6500 K, the range a fixture actually renders.
-- **Brightness and power are independent** — writing `brightness: 0` leaves
-  `power: true` (on but dark), so turn-off sets `power: false` and keeps the
-  brightness value, and the lamp restores its level on turn-on.
-- **Transition** enum: `instant, ms125, ms250, ms500, ms1000, ms2000, ms4000`;
-  HA's transition seconds snap to the nearest bucket.
-
-No DTLS, no CoAP, no per-device key needed. (For the record: the CoAP/DTLS
-bridge on 5684 authenticates with a per-device X.509 cert+key stored in the
-internal `settings:/zuma/factoryCert` / `factoryKey` nodes — the intended
-off-device path — but the `zuma:` mirror makes it unnecessary.)
-
-Architecture note: the mDNS TXT record's `master=1` / `group=<uuid>` mean one unit per
-area is the master and fans out to the rest over KleerNet — a light integration should
-target the master, not each downlight.
+Units are discovered automatically over mDNS (`_sues800device._tcp`); the TXT record's
+serial becomes the unique ID, so discovered and manually-added entries resolve to one
+device. Manual setup by IP also works.
 
 ## Install
 
-HACS → three-dot menu → Custom repositories → this repo, category *Integration*.
-Then Settings → Devices & Services → Add Integration → **Zuma**.
+[![Open your Home Assistant instance and open this repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=luismalves&repository=zuma-hacs&category=integration)
 
-Or copy `custom_components/zuma/` into your HA `config/custom_components/`.
+Click the button above (requires [HACS](https://hacs.xyz)), or add it manually:
+
+HACS → three-dot menu → Custom repositories → this repo, category *Integration*.
+Then **Settings → Devices & Services → Add Integration → Zuma**.
+
+Or copy `custom_components/zuma/` into your HA `config/custom_components/` and restart.
 
 ## Playing a stream URL (internet radio, etc.)
 
-The nsdk API can pause/stop/skip but cannot *start* a URL. The same unit also runs a
-Rygel DLNA MediaRenderer, which can — so `media_player.play_media` bridges to it:
+Use the standard `media_player.play_media` action — no custom service:
 
 ```yaml
 action: media_player.play_media
 target:
-  entity_id: media_player.bathroom
+  entity_id: media_player.zuma_bathroom
 data:
   media_content_id: https://playerservices.streamtheworld.com/api/livestream-redirect/RADIO_RENASCENCA.mp3
   media_content_type: music
 ```
 
-This is the standard Home Assistant service — no custom action. Under the hood the
-integration finds the renderer via a unicast SSDP M-SEARCH each call (its port is
-ephemeral and moves across reboots) and issues `SetAVTransportURI` + `Play`. Volume,
-mute, pause and stop then work on the stream through the nsdk API as usual.
+Under the hood the nsdk API can't *start* a URL (only pause/stop/skip), so this bridges
+to the unit's own Rygel DLNA renderer: a unicast SSDP M-SEARCH finds it each call (its
+port is ephemeral and moves across reboots), then `SetAVTransportURI` + `Play`. Volume,
+mute, pause and stop still go through the nsdk API. HA media-source items (TTS, the
+media browser) work too, not just raw URLs.
 
-**Format limits (the renderer probes the URL and enforces these):** MP3
+**Format limits** (the renderer probes the URL and enforces its sink list): MP3
 (`audio/mpeg`) and clean AAC/MP4 play. **HLS (`.m3u8`) and ICY `audio/aacp` do not** —
 notably streamtheworld's `.aac` mounts serve `audio/aacp` and are refused, so use the
-station's `.mp3` mount. The entity also accepts HA media-source items (TTS, the media
-browser), not only raw URLs.
+station's `.mp3` mount.
+
+## How light control works
+
+The lamp is a composite settings value with power, brightness (0–100) and colour
+temperature (Kelvin):
+
+```
+zuma:lightState = {"type": "zumaLightState", "zumaLightState": {
+  "power": true, "brightness": 25, "temperature": 3869,
+  "lastTransitionPeriod": "ms1000"}}
+```
+
+The canonical node `settings:/zuma/lightState` is flagged `"internal": true` in the
+firmware, so enumeration never lists it and `getData` returns *"Node is internal"*. But
+the device mirrors the lamp into the **`zuma:` volatile namespace**, and `zuma:lightState`
+is served over the LAN for both read and write with no authentication — no DTLS, no
+CoAP, no per-device key. Notes that shaped the entity:
+
+- **Colour temperature**: the firmware tolerates 1000–8000 K but the entity clamps to
+  2200–6500 K, the range a fixture actually renders.
+- **Brightness and power are independent** — `brightness: 0` leaves `power: true` (on
+  but dark), so turn-off writes `power: false` and keeps the brightness, restoring the
+  level on turn-on.
+- **Transition** enum: `instant, ms125, ms250, ms500, ms1000, ms2000, ms4000`; HA's
+  transition seconds snap to the nearest bucket.
+
+## What isn't possible locally
+
+- **Starting native (airable) internet radio.** Browsing the airable directory works,
+  but nothing in the HTTP API *starts* a station: `player:player/control` accepts only
+  `pause`/`stop`/`next`/`previous` (24 other verb spellings were tried), and activating
+  a station only navigates. Start playback from the Zuma app / AirPlay / Spotify /
+  TIDAL and this integration then controls it — or push any stream URL yourself with
+  `play_media` (above), which is the practical substitute.
+- **Numeric device temperature.** The unit measures SoC / MCU / LED / amp temperatures
+  (`zuma-metric-gatherer` reading `/sys/class/thermal/...`) but **publishes them only as
+  MQTT telemetry to Zuma's cloud** — they are never written to a locally-readable node.
+  The app's temperature figure comes from the cloud. The only local thermal signal is
+  the `thermal_mode` enum (`normal` → `limited` → `shutdown`), exposed as a sensor.
+- **Push state updates.** The integration polls every 10 s. The device also offers a
+  long-poll event queue (`/api/event/*`) that could replace polling later.
 
 ## The device API, for reference
 
-Port 80, plaintext, unauthenticated:
+Port 80, plaintext, unauthenticated. It is the StreamUnlimited StreamSDK web API — the
+hardware pairs a StreamUnlimited S800 audio module (which owns this API) with Zuma's own
+light/MCU board, which is why audio is richly exposed and the lamp hides in the `zuma:`
+mirror.
 
 ```
 GET  /api/getData?path=<path>&roles=<comma,separated>
@@ -120,25 +124,28 @@ GET  /api/event/pollQueue?queueId=&timeout=<ms>
 Two things will trip you up:
 
 1. **Values are tagged unions.** A read returns `[{"i32_": 22, "type": "i32_"}]`, and a
-   write must re-tag with the matching type name. Booleans must be tagged `bool_`, not
-   `i32_`, even though Python's `bool` is an `int`.
-2. **Errors come back as HTTP 500 with a JSON body**, not as a transport failure:
+   write must re-tag with the matching type name. Booleans tag as `bool_`, not `i32_`,
+   even though Python's `bool` is an `int`.
+2. **Application errors come back as HTTP 500 with a JSON body**, not a transport error:
    `{"error": {"name": "CMAbstractWorker::invalidPath", "message": "..."}}`.
 
 Useful roles: `value`, `title`, `type`, `path`. Enumerate a container with
 `getRows?roles=path,type`.
 
-Other open ports on the unit: **2019** TIDAL Connect, **7000** AirPlay,
-**8080 / 8085 / 41347** unidentified (bare 404s), **5684/udp** the Zuma CoAP channel.
-Spotify Connect rides on port 80 at `/api/stream/spotify:zeroconf`.
+Open ports on the unit: **80** StreamSDK API, **2019** TIDAL Connect, **7000** AirPlay,
+**8080 / 8085** unidentified (bare 404s), **41347** (ephemeral) the Rygel DLNA
+MediaRenderer, **5683/udp** plain CoAP (answers `4.04` unauthenticated), **5684/udp** the
+Zuma CoAP/DTLS channel (per-device X.509 cert in `settings:/zuma/factoryCert` /
+`factoryKey`). Spotify Connect rides on port 80 at `/api/stream/spotify:zeroconf`.
 
 ## Tests
 
-Offline tests cover the value codec and request building — no device, no Home Assistant:
+Offline tests (value codec, request shapes, DLNA helpers) need no device and no Home
+Assistant:
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements-test.txt
-.venv/bin/python -m pytest tests/test_api.py -q
+.venv/bin/python -m pytest tests/test_api.py tests/test_dlna.py -q
 ```
 
 Live tests talk to a real unit and print its responses:
@@ -147,62 +154,30 @@ Live tests talk to a real unit and print its responses:
 ZUMA_HOST=192.168.20.158 .venv/bin/python -m pytest tests/test_live.py -v -s
 ```
 
-Reads are safe. The volume round-trip moves a real speaker's volume (and restores it),
-so it's gated behind an explicit opt-in:
+Reads are safe; write round-trips (volume, light) move real hardware and restore it, so
+they are gated behind an explicit opt-in:
 
 ```bash
 ZUMA_HOST=… ZUMA_ALLOW_WRITE=1 .venv/bin/python -m pytest tests/test_live.py -v -s
 ```
 
-There's also a standalone explorer that needs neither pytest nor Home Assistant:
+A standalone explorer needs neither pytest nor Home Assistant:
 
 ```bash
-python3 scripts/live_check.py 192.168.20.158              # full report
-python3 scripts/live_check.py <ip> --ls settings:/        # list a container
-python3 scripts/live_check.py <ip> --walk settings:/zuma  # dump a subtree
+python3 scripts/live_check.py <ip>                       # full report
+python3 scripts/live_check.py <ip> --ls settings:/       # list a container
+python3 scripts/live_check.py <ip> --walk settings:/zuma # dump a subtree
 python3 scripts/live_check.py <ip> --get player:volume
 python3 scripts/live_check.py <ip> --set player:volume 25
 ```
 
-## Not done yet
+## Compatibility
 
-- **Internet radio — browsing solved, starting playback is not possible over HTTP.**
-  This is a structural limit of the API, established by exhaustive test rather than
-  by giving up:
-  - Actions are invoked as `setData(path, role="activate", value={})`. On action nodes
-    the role name is ignored; a *wrong* role reports "Node at path X does not exist",
-    which doubles as a handy role-existence oracle.
-  - `airable:` is a URL-addressed browse tree, fully readable. `getRows` on
-    `airable:https://<acct>.airable.io/airable/radios` yields Favorites, History,
-    Recommendations, Local, Popular, Trending, HQ, New, Filter and Search. Stations are
-    `airable:https://<acct>.airable.io/id/airable/radio/<id>`, with roles `id`, `icon`,
-    `audioType`, `containerPlayable`, `mediaData` and `context`.
-  - **`player:player/control` accepts exactly four verbs: `pause`, `stop`, `next`,
-    `previous`.** A sweep of 24 candidate spellings (play, resume, playPause, toggle,
-    start, unpause, continue, …) found no way to *start* playback. Verb validity is
-    testable independent of player state: a valid verb returns `null`, while anything
-    unrecognised falls through to "play the current directory" and reports
-    *"Directory is empty. No playable items found."* — which is why an invalid verb
-    masquerades as a playback failure.
-  - Activating a station only navigates: the reply is an `NsdkActionReply` whose
-    `result.path` echoes the input, and playback does not start — including while
-    another station is already playing.
-  - `airable:playContext:<url>` exists only while that item is playing, and it is a
-    context *menu*, not a queue: type `container`, title "Actions", containing one
-    row `airable:action:https://<acct>.airable.io/actions/favorites/airable/radio/<id>/insert`
-    ("Add to Radio favorites", type `action`). Managing favourites therefore looks
-    reachable even though starting playback is not.
-  - `airable:preplay\?serviceType\=…` blocks indefinitely for every payload shape;
-    it is an internal node, not HTTP-invocable.
-  - Conclusion: **start playback from the app, AirPlay, Spotify Connect or TIDAL
-    Connect; this integration then controls and reports it.** Seeding the play
-    directory appears to be reserved to the Zuma middleware over its CoAP channel.
-    The untried lead is `systemmanager:/createLogFile` — a device log taken while the
-    app starts a station may name the internal call.
-- **Push updates.** Polls every 10 s. The event queue endpoints above give push; worth
-  switching to if volume feedback lag becomes annoying.
-- **Light.** See above — needs the DTLS-PSK CoAP credentials.
+Built against a Zuma SL on firmware `22.11.108952`, StreamSDK `21.03-Phosphorus`. Node
+paths are undocumented and may move in any firmware update. Nothing here is official or
+supported by Zuma.
 
-Firmware this was built against: Zuma SL, `22.11.108952`, StreamSDK
-`21.03-Phosphorus`. Nothing here is official or supported by Zuma; node paths could
-move in any firmware update.
+## License
+
+[MIT](LICENSE) © the contributors. The MIT grant covers this project's own source only;
+it confers no rights in any Zuma trademark or firmware.
