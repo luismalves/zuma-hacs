@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Virtualenvs
+.venv/
+venv/
+env/
+
+# Test / tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Firmware / reverse-engineering scratch (never commit device images or dumps)
+*.swu
+*.ubifs
+zuma_fw/
+*.bin
+
+# Secrets / device-specific captures
+secrets.yaml
+*.pem
+*.key
+*.pcap
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

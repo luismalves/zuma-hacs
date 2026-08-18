@@ -1,0 +1,34 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "IP address or hostname of the Zuma unit.",
+        "data": {
+          "host": "Host"
+        }
+      },
+      "confirm": {
+        "description": "Add the Zuma unit {name}?"
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "not_zuma": "That device did not answer with a Zuma StreamSDK API"
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "cannot_connect": "Failed to connect",
+      "not_zuma": "That device did not answer with a Zuma StreamSDK API"
+    }
+  },
+  "entity": {
+    "switch": {
+      "circadian_lighting": {
+        "name": "Circadian lighting"
+      },
+      "led_curfew": {
+        "name": "Status LED curfew"
+      }
+    }
+  }
+}
