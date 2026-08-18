@@ -119,3 +119,31 @@ async def test_get_light_unwraps_state(zuma_api, fake_session):
     api = zuma_api.ZumaApi("host.invalid", fake_session(reply))
     light = await api.get_light()
     assert light == {"power": True, "brightness": 17, "temperature": 3869}
+
+
+async def test_create_event_queue_subscribes_as_item(zuma_api, fake_session):
+    """Leaf nodes subscribe with type 'item'; queue id is returned."""
+    session = fake_session('"{q-123}"')
+    api = zuma_api.ZumaApi("host.invalid", session)
+    qid = await api.create_event_queue(["player:volume", "zuma:lightState"])
+    assert qid == "{q-123}"
+    _, url, params = session.calls[0]
+    assert url.endswith("/api/event/modifyQueue")
+    assert params["queueId"] == ""
+    subs = __import__("json").loads(params["subscribe"])
+    assert subs == [
+        {"path": "player:volume", "type": "item"},
+        {"path": "zuma:lightState", "type": "item"},
+    ]
+
+
+async def test_poll_events_returns_changed_paths(zuma_api, fake_session):
+    """pollQueue's event array is reduced to the list of changed paths."""
+    reply = '[{"itemType": "update", "rowsEvents": [], "path": "player:volume"}]'
+    api = zuma_api.ZumaApi("host.invalid", fake_session(reply))
+    assert await api.poll_events("{q-123}") == ["player:volume"]
+
+
+async def test_poll_events_tolerates_empty(zuma_api, fake_session):
+    api = zuma_api.ZumaApi("host.invalid", fake_session("[]"))
+    assert await api.poll_events("{q-123}") == []

@@ -42,8 +42,23 @@ LIGHT_TRANSITIONS = {0: "instant", 125: "ms125", 250: "ms250", 500: "ms500",
 # The device's volumeMap has 101 entries (-120 dB .. 0 dB), so volume is 0-100.
 VOLUME_MAX = 100
 
-SCAN_INTERVAL_SECONDS = 10
+# Fallback poll cadence. Push (the event queue) delivers changes in ~2 s; this
+# periodic refresh is only a safety net and a catch-all for the rarely-changing
+# diagnostics, so it can be slow.
+SCAN_INTERVAL_SECONDS = 60
 
 # The full transport vocabulary accepted by player:player/control. Swept exhaustively:
 # there is no play/resume verb at any spelling, so playback cannot be started here.
 CONTROL_VERBS = ("pause", "stop", "next", "previous")
+
+
+# Leaf nodes the push listener subscribes to (type "item"). Any event triggers a
+# full state refresh, so this only needs the fast-changing nodes, not every leaf.
+PUSH_PATHS = (
+    "player:volume",
+    "settings:/mediaPlayer/mute",
+    "player:player/data",
+    "zuma:lightState",
+    "settings:/zuma/circadianLighting",
+    "settings:/zuma/ledCurfewEnabled",
+)

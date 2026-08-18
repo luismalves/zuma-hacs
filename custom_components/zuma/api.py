@@ -101,15 +101,17 @@ class ZumaApi:
         *,
         params: dict[str, Any] | None = None,
         body: dict[str, Any] | None = None,
+        timeout: aiohttp.ClientTimeout | None = None,
     ) -> Any:
         url = f"http://{self._host}/api/{endpoint}"
         # aiohttp rejects non-string query values, and the device wants ints as digits.
         query = {k: str(v) for k, v in (params or {}).items()}
+        timeout = timeout or self._timeout
         try:
             if body is None:
-                ctx = self._session.get(url, params=query, timeout=self._timeout)
+                ctx = self._session.get(url, params=query, timeout=timeout)
             else:
-                ctx = self._session.post(url, json=body, timeout=self._timeout)
+                ctx = self._session.post(url, json=body, timeout=timeout)
             async with ctx as resp:
                 text = await resp.text()
         except aiohttp.ClientError as err:
@@ -188,6 +190,41 @@ class ZumaApi:
         """Transport state string: stopped / playing / paused."""
         data = await self.get_value(PATH_PLAYER_DATA)
         return data.get("state") if isinstance(data, dict) else None
+
+    # --- event queue (push) ----------------------------------------------
+
+    async def create_event_queue(self, paths: list[str]) -> str:
+        """Create a change-notification queue subscribed to leaf nodes.
+
+        Leaf nodes subscribe with type ``item`` (containers would use ``rows``);
+        the device then pushes ``{"itemType": "update", "path": ...}`` when one
+        changes. Returns the queue id (a brace-wrapped UUID) to poll.
+        """
+        subscribe = json.dumps([{"path": p, "type": "item"} for p in paths])
+        qid = await self._request(
+            "event/modifyQueue",
+            params={"queueId": "", "subscribe": subscribe, "unsubscribe": "[]"},
+        )
+        if not isinstance(qid, str):
+            raise ZumaError(f"unexpected modifyQueue reply: {qid!r}")
+        return qid
+
+    async def poll_events(self, queue_id: str, client_timeout: float = 90.0) -> list[str]:
+        """Long-poll the queue; return the list of changed paths.
+
+        The device holds the connection until a subscribed node changes (it does
+        not honour the ``timeout`` param as an idle return), so ``client_timeout``
+        is the liveness ceiling: on expiry the caller simply re-polls. A stale
+        queue id yields a non-JSON "Unknown queue id!" body, surfaced as ZumaError.
+        """
+        events = await self._request(
+            "event/pollQueue",
+            params={"queueId": queue_id, "timeout": 30000},
+            timeout=aiohttp.ClientTimeout(total=client_timeout),
+        )
+        if not isinstance(events, list):
+            return []
+        return [e["path"] for e in events if isinstance(e, dict) and e.get("path")]
 
     async def get_light(self) -> dict[str, Any] | None:
         """Current lamp state: {power, brightness 0-100, temperature K, ...}."""

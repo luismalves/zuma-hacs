@@ -26,6 +26,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ZumaConfigEntry) -> bool
     coordinator.identity = await api.get_identity()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    # Push listener: refreshes on device-side changes. Cancelled automatically when
+    # the entry unloads; the periodic poll remains as a fallback if it can't run.
+    entry.async_create_background_task(
+        hass, coordinator.async_run_push_listener(), f"zuma-push-{api.host}"
+    )
     return True
 
 
