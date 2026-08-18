@@ -1,0 +1,41 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "23 4 * * 1"
+
+jobs:
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # 'brands' only blocks submission to the HACS *default* store, not custom
+          # repository installs. Clearing it needs a real logo: add icon.png + logo.png
+          # under custom_components/zuma/brand/, or add "zuma" to home-assistant/brands.
+          ignore: brands
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-test.txt
+      # Live tests (tests/test_live.py) auto-skip without ZUMA_HOST, so this runs
+      # the offline suite (codec, request shapes, DLNA helpers) in CI.
+      - run: python -m pytest tests/ -q
