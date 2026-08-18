@@ -182,5 +182,6 @@ supported by Zuma.
 
 ## License
 
-[MIT](LICENSE) © the contributors. The MIT grant covers this project's own source only;
-it confers no rights in any Zuma trademark or firmware.
+[MIT](LICENSE) © Luís Alves and contributors. The MIT grant covers this project's own
+source only; it confers no rights in any Zuma trademark or firmware. "Zuma" and
+"Lumisonic" are trademarks of Zuma Array Limited (see the disclaimer at the top).
