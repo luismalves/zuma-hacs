@@ -111,4 +111,11 @@ class ZumaLight(ZumaEntity, LightEntity):
             "lastTransitionPeriod": state.get("lastTransitionPeriod", "ms500"),
         }
         await self.coordinator.api.set_light(payload)
-        await self.coordinator.async_request_refresh()
+        # Reflect the commanded state at once, optimistically. The lamp fades over
+        # lastTransitionPeriod and reports the *old* power/brightness until the fade
+        # settles, so an immediate read-back flickers (e.g. off -> on -> off on
+        # turn-off). Trust the command we just made and let the push event / poll
+        # reconcile once the device settles.
+        data = dict(self.coordinator.data or {})
+        data["light"] = payload
+        self.coordinator.async_set_updated_data(data)
