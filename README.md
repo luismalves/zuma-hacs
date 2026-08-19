@@ -32,8 +32,8 @@ device. Manual setup by IP also works.
 
 State changes are **pushed**: the integration long-polls the device's event queue
 (`/api/event/*`, subscribing to leaf nodes as type `item`) and refreshes within ~2 s
-of a change made from the app or the unit itself. A 60 s poll runs as a fallback and
-to catch the rarely-changing diagnostics.
+of a change made from the app or the unit itself. A 10 s poll runs as a fallback and
+catches changes push doesn't signal (notably app/CoAP-driven light changes).
 
 ## Install
 

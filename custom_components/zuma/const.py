@@ -42,10 +42,12 @@ LIGHT_TRANSITIONS = {0: "instant", 125: "ms125", 250: "ms250", 500: "ms500",
 # The device's volumeMap has 101 entries (-120 dB .. 0 dB), so volume is 0-100.
 VOLUME_MAX = 100
 
-# Fallback poll cadence. Push (the event queue) delivers changes in ~2 s; this
-# periodic refresh is only a safety net and a catch-all for the rarely-changing
-# diagnostics, so it can be slow.
-SCAN_INTERVAL_SECONDS = 60
+# Poll cadence. Push (the event queue) delivers most changes in ~2 s, but it only
+# fires for the node actually written -- an app/CoAP-driven light change updates the
+# internal node and the zuma: mirror doesn't reliably signal it, so that case relies
+# on this poll. Keep it at 10 s so the worst case stays snappy rather than pushing the
+# interval out and letting missed events lag.
+SCAN_INTERVAL_SECONDS = 10
 
 # The full transport vocabulary accepted by player:player/control. Swept exhaustively:
 # there is no play/resume verb at any spelling, so playback cannot be started here.
